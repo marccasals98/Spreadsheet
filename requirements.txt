@@ -1,3 +1,0 @@
-1. An spreadsheet have cells.
-2. Each cell is located thorught coordinates.
-3. The Cartesian coordinates are defined in a tuple.
