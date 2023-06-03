@@ -60,6 +60,6 @@ class ContentFactory:
             return Numerical(int(value))
         if is_float(value):
             return Numerical(float(value))
-        if value[0] == "=":
-            return Formula(value)
+        # if value[0] == "=":
+        #     return Formula(value)
         return Text(value)

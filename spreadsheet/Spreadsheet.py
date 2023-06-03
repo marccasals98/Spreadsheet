@@ -94,6 +94,10 @@ class Cell:
         """Get the value of the cell"""
         return self._content.get_value()
     
+    def get_content(self) -> int | float | str:
+        """Get the value of the cell"""
+        return self._content
+    
     def set_content(self, content: Content):
         """Sets the content of the cell"""
         self._content = content
@@ -119,7 +123,8 @@ class Spreadsheet:
         self.name = name
         self.num_columns = num_columns
         self.num_rows = num_rows
-        self.cells: dict[Coordinates, Cell] = self._initialize_cell_dict(num_columns, num_rows)
+        self.cells: dict[Coordinates, Cell] = {}
+        self._initialize_cell_dict(num_columns, num_rows)
         
     @classmethod
     def from_values(cls, values: list[list[int|float|str]]) -> Spreadsheet:
@@ -135,7 +140,10 @@ class Spreadsheet:
         Spreadsheet 
             New spreadsheet 
         """
-        sheet: Spreadsheet = cls("sheet", len(values), len(values[0]))
+        num_rows = len(values)
+        num_cols = max([len(row) for row in values])
+        print(f"!!! {num_cols} {num_rows}")
+        sheet: Spreadsheet = cls("sheet", num_cols, num_rows)
         for row_idx, row in enumerate(values):
             for col_idx, value in enumerate(row):
                 content = ContentFactory.get(value)
@@ -143,8 +151,7 @@ class Spreadsheet:
                 sheet.cells[coords].set_content(content)
         return sheet
     
-    @staticmethod
-    def _initialize_cell_dict(num_columns: int, num_rows: int) -> dict:
+    def _initialize_cell_dict(self, num_columns: int, num_rows: int) -> dict:
         """
         Create new dictionary of cells
         
@@ -154,18 +161,12 @@ class Spreadsheet:
                 the number of columns of the dictionary.
         num_rows : int
                 the number of columns of the dictionary.
-
-        Returns:
-        --------
-        d : dict
-                the dictionary of cells. 
         """
-        d = dict()
         for c in range(1, num_columns+1):
             for r in range(1, num_rows+1):
                 coords = Coordinates(col=c,row=r)
-                d[coords] = Cell(coords)
-        return d
+                if coords not in self.cells:
+                    self.cells[coords] = Cell(coords)
 
     def size(self) -> tuple[int, int]:
         """Retruns the number of columns and rows of the spreadsheet"""
@@ -216,3 +217,11 @@ class Spreadsheet:
             values.append(row_values)
         return values
             
+            
+    def expand(self, num_cols: int, num_rows: int):
+        """_summary_
+        """
+        self.num_columns = max(self.num_columns, num_cols)
+        self.num_rows = max(self.num_rows, num_rows)
+        self._initialize_cell_dict(self.num_columns, self.num_rows)
+        
