@@ -1,3 +1,4 @@
+from __future__ import annotations
 import re
 
 from spreadsheet.Content import Content, Numerical, Text, ContentFactory
