@@ -10,8 +10,16 @@ class Tokenizer:
 
     Attributes:
     ------------
-    tokens: list[str]
-        list of tokens
+    tokens: list[tuple[str, int]]
+        List of tuples with the token and its id.
+        The id is the index of the token in the token_patterns list.
+    
+    Methods:
+    --------
+    get_tokens: list[str] -> list[tuple[str, int]]
+        Takes a list of strings and splits them into tokens.
+    tokenize: str -> list[tuple[str, int]]
+        Takes a string and splits it into tokens. Returns the tokens.
 
     ''' 
         
@@ -53,11 +61,6 @@ class Tokenizer:
         return self.tokens
                     
                     
-                    
-                    
-                    
-                
-        
 
 class Parser:
     # Normes:
@@ -99,7 +102,15 @@ class Parser:
             raise ValueError(f"Last token can not be: {tokens[-1][1]}")
         
         # Check parenthesis:
-        # TODO
+        # TODO: Check parenthesis
+        parenthesis_counter = 0
+        for (token, id) in tokens:
+            if id == 5:
+                parenthesis_counter += 1
+            elif id == 6:
+                parenthesis_counter -= 1
+        if parenthesis_counter != 0:
+            raise ValueError("Parenthesis do not match")
         
         return tokens
             
@@ -120,11 +131,97 @@ class PostfixExpressionManager():
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer
     
-    def generate_postfix_expression(self, list_of_strings):
-        ...
-    
-    def evaluate_postfix_expression(self, list_of_strings):
-        ...
+    def generate_postfix_expression(self, tokens: list[tuple[str, int]]):
+        '''
+        Generates the postfix expression corresponding to formula as a sequence of formula components.
+        Uses the Shunting-yard algorithm.
+
+        Parameters:
+        -----------
+        tokens: list[tuple[str, int]]
+            List of tuples with the token and its id.
+            The id is the index of the token in the token_patterns list.
+        '''
+        # https://www.youtube.com/watch?v=HJOnJU77EUs
+
+        stack = []
+        output = []
+        
+        # Precedence of operators: determines the order of operations.
+        precedence = {
+            '+': 1,
+            '-': 1,
+            '*': 2,
+            '/': 2,
+            '^': 3
+        }
+
+        for token, id in tokens:
+
+            # The token is a number or a cell reference.
+            if id in [3, 4]:
+                output.append((token, id))
+            
+            # The token is an operator.
+            elif id == 0:
+                # compare the precedence of the token with that of the operator on the top of the stack.
+                while stack and stack[-1][1] == 0 and precedence[stack[-1][0]] >= precedence[token]:
+                    output.append(stack.pop())
+                # push the operator onto the stack.
+                stack.append((token, id))                    
+            
+            # The token is a function.
+            elif id == 1:
+                stack.append((token, id))
+
+            # The token is a left parenthesis.
+            elif id == 5:
+                stack.append((token, id))
+            
+            # The token is a right parenthesis.
+            elif id == 6:
+                while stack and stack[-1][1] != 5:
+                    output.append(stack.pop())
+                if stack and stack[-1][1] == 5:
+                    stack.pop() # Remove the left parenthesis.
+                else:
+                    raise ValueError("Parenthesis do not match")
+            
+        # Empty the stack.
+        while stack:
+            if stack[-1][1] == 5 or stack[-1][1] == 6:
+                raise ValueError("Parenthesis do not match")
+            output.append(stack.pop())
+        
+        return output
+                    
+    def evaluate_operation(self, a, b, operator):
+        if operator == "+":
+            return a + b
+        elif operator == "-":
+            return a - b
+        elif operator == "*":
+            return a * b
+        elif operator == "/":
+            return a / b
+        elif operator == "^":
+            return a ** b
+        else:
+            raise ValueError("Bad operator")
+        
+    def evaluate_postfix_expression(self, tokens):
+        stack = []
+        for token, id in tokens:
+            if id == 3:
+                stack.append((token, id))
+            if id == 0:
+                if len(stack) < 2:
+                    raise ValueError("Bad expression")
+                else:
+                    b = stack.pop()
+                    a = stack.pop()
+                    stack.append((self.evaluate_operation(a, b, token), 3))
+            return stack[0][0]     
         
         
 class FormulaEvaluator:
