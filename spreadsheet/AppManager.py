@@ -3,7 +3,8 @@ import os
 
 from spreadsheet.CLI import CLI
 from spreadsheet.Spreadsheet import Spreadsheet, Coordinates
-from spreadsheet.Content import ContentFactory, Formula
+from spreadsheet.Content import ContentFactory, Formula, Content
+from spreadsheet.FormulaEvaluator import FormulaEvaluator
 
 class SpreadsheetIO:
     """SpreadsheetIO class
@@ -71,9 +72,10 @@ class AppManager:
     Responsible for controlling the main components of the app.
     """
     def __init__(self):
-        self.spreadsheet = Spreadsheet("empty", 1, 1)
-        self.cli = None
-        self.formula_evaluator = None
+        self.spreadsheet: Spreadsheet = Spreadsheet("empty", 1, 1)
+        self.cli: CLI = None
+        # Mapping cell => list of cells
+        self.cell_dependencies: dict[Coordinates, list[Coordinates]] = {}
 
     def execute_command(self, cmd: str, **argv):
         """Execute a command given its name and arguments
@@ -122,6 +124,32 @@ class AppManager:
         # TODO: Check default values
         self.spreadsheet = Spreadsheet("my spreadsheet", 10, 10)
         
+    
+    def _update_dependencies(self, coords: Coordinates, new_content: Content):
+        """Update the dependencies between cells."""
+        # If cell had a formula before, remove dependencies
+        content = self.spreadsheet.cells[coords].get_content()
+        if isinstance(content, Formula):
+            print("REMOVING OLD DEPENDENCIES")
+            for cell in content.get_dependencies():
+                self.cell_dependencies[cell].remove(coords)
+                
+        # If new content is not formula, no need to add dependencies
+        if not isinstance(new_content, Formula):
+            print(f"{new_content} is not formula")
+            return
+        
+        # Add new dependencies
+        for cell in new_content.get_dependencies():
+            if cell not in self.cell_dependencies:
+                self.cell_dependencies[cell] = []
+            self.cell_dependencies[cell].append(coords)
+        
+        # Check for circular dependencies
+        if self.check_circular_dependencies(coords):
+            raise ValueError("Formula introduced circular dependencies!")
+    
+        
     def edit_cell(self, coords: str, value: str | float | int):
         """Edits the content of a cell
 
@@ -133,18 +161,44 @@ class AppManager:
             Value to assign to the cell. It will be casted to a 
             content of type (Formula, Text or Numerical)
         """
+        coords = Coordinates.from_text(coords)
         content = ContentFactory.get(value)
         if isinstance(content, Formula):
-            # TODO: Evaluate function value
-            ...
-        coords = Coordinates.from_text(coords)
+            evaluator = FormulaEvaluator(content, self.spreadsheet)
+            evaluator.evaluate()
+            evaluator.update_dependencies()
+        self._update_dependencies(coords, content)
         if coords not in self.spreadsheet.cells:
             self.spreadsheet.expand(coords.col, coords.row)
+        
         self.spreadsheet.cells[coords].set_content(content)
-        # TODO: Update all influenced cells
+        
+        # Recompute cells that depend on new cell
+        dependencies = self.cell_dependencies.get(coords, []).copy()
+        recomputed_cells = set()
+        print(f"Dependencies to check: {self.cell_dependencies}")
+        while dependencies:
+            cell = dependencies.pop()
+            if cell in recomputed_cells:
+                raise ValueError("Circular Dependency")
+            recomputed_cells.add(cell)
+            evaluator = FormulaEvaluator(self.spreadsheet.cells[cell].get_content(), 
+                                         self.spreadsheet)
+            evaluator.evaluate()
+            dependencies.extend(self.cell_dependencies.get(cell, []).copy())
+
+            
+        
+    def check_circular_dependencies(self, coords: Coordinates):
+        """Check if there is a circular dependency involving `coords`"""
+        # TODO: Check circular dependencies of more than 1 jump
+        for cell in self.cell_dependencies.get(coords, []):
+            if self.cell_dependencies.get(cell, None):
+                return True
+        return False
 
     def load_spreadsheet_from_file(self, path: str):
-        """Loads a spreadsheet from a path (sv2 format)
+        """Load a spreadsheet from a path (sv2 format)
 
         Parameters
         ----------

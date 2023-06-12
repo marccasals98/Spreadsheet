@@ -1,1 +1,1 @@
-from spreadsheet.AppManager import AppManager
+from spreadsheet.Spreadsheet import Coordinates
