@@ -3,7 +3,8 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from spreadsheet.Spreadsheet import Spreadsheet, Coordinates, col_num2text
+from spreadsheet.Spreadsheet import Spreadsheet
+from spreadsheet.Coordinates import Coordinates, col_num2text
 
 # Command list and the regex expression to match
 COMMANDS = {
@@ -87,7 +88,7 @@ class CLI:
             return parsed
         
         self.cprint(f"[bold red]Command {line} not found")
-        self.read_command()
+        return self.read_command()
 
             
     def print_spreadsheet(self, sheet: Spreadsheet):
@@ -105,7 +106,7 @@ class CLI:
         for c in range(1, ncol+1):
             tab.add_column(col_num2text(c))
         for r in range(1, nrow+1):
-            row_vals = [sheet.cells[Coordinates(c,r)].get_value() 
+            row_vals = [str(sheet.cells[Coordinates(c,r)]) 
                         for c in range(1, ncol+1)]
             tab.add_row(str(r), *[str(val) for val in row_vals])
         self.cprint(tab)

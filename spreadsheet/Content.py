@@ -1,4 +1,5 @@
 import abc
+from spreadsheet.Coordinates import Coordinates
 
 def is_float(txt: str):
     try:
@@ -28,6 +29,9 @@ class Numerical(Content):
     def set_value(self, value: float):
         self._value = value
         
+    def __str__(self):
+        return str(self._value)
+        
 
 class Text(Content):
     def __init__(self, value: str):
@@ -39,16 +43,38 @@ class Text(Content):
     def set_value(self, value: str):
         self._value = value
         
+    def __str__(self):
+        return str(self._value)
+        
 
 class Formula(Content):
     def __init__(self, repr: str):
+        if repr[0] == '=':
+            repr = repr[1:]
         self._representation = repr
+        self._value = None
+        self._dependencies: list[Coordinates] = None
         
     def get_value(self):
-        ...
+        if self._value == None:
+            raise Exception("Formula not yet evaluated")
+        return self._value
+
+    def set_value(self, value: int | float):
+        self._value = value
     
     def get_representation(self):
-        return self._value
+        return self._representation
+    
+    def get_dependencies(self):
+        return self._dependencies
+    
+    def set_dependencies(self, dep):
+        self._dependencies = dep
+    
+    def __str__(self):
+        return f"{self._representation} [{self._value}]"
+    
     
 
 class ContentFactory:
