@@ -57,6 +57,21 @@ class Spreadsheet:
     cells: dict[Coordinate, Cell]
         Dictionary with a mapping between each coordinate and the
         cell object in that coordinate
+    
+    Methods:
+    -------
+    _initialize_cell_dict(num_columns: int, num_rows: int) -> dict
+        Create new dictionary of cells
+    size() -> tuple[int, int]
+        Retruns the number of columns and rows of the spreadsheet
+    get_range(ul_coord: Coordinates, lr_coord: Coordinates) -> list[Cell]
+        Returns a list of cells contained on a range defined by
+        the corner coordinates of the range.
+    get_values() -> list[list[str]]
+        Return all the values (casted to string) of the
+        spreadsheet in matrix form.
+    expand(num_cols: int, num_rows: int)
+        Expand the spreadsheet to a new size.
     """
     def __init__(self, name: str, num_columns: int, num_rows: int):
         self.name = name
@@ -157,9 +172,17 @@ class Spreadsheet:
         
         return values
             
-            
+    
     def expand(self, num_cols: int, num_rows: int):
         """_summary_
+        Expand the spreadsheet to a new size.
+
+        Arguments:
+        ----------
+        num_columns : int
+                the new number of columns.
+        num_rows : int
+                the new number of rows.
         """
         self.num_columns = max(self.num_columns, num_cols)
         self.num_rows = max(self.num_rows, num_rows)
