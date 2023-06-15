@@ -29,9 +29,9 @@ python3 ../test/edu/upc/ac/marker/TestsRunner.py
 
 Commands:
 
-RF: Read a the commands from a file.
+* RF: Read a the commands from a file.
 
-C: Creates a new sheet.
+* C: Creates a new sheet.
 
 E: Edits a cell.
 
