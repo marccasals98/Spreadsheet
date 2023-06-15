@@ -46,7 +46,9 @@ class Tokenizer:
         return self.tokens
     
     def tokenize(self, repr: str):
-        # TODO: Document
+        '''
+        Takes a string and splits it into tokens. Returns the tokens.        
+        '''
         repr = repr.replace(" ", "")
         while repr != "":
             matched = False
@@ -65,17 +67,49 @@ class Tokenizer:
                     
 
 class Parser:
-    """TODO: Document"""
-    # Normes:
-    #  - 0 => 1, 3, 4, 5
-    #  - 1 => 5
-    #  - 2 => 6
-    #  - 3 => 0
-    #  - 5 => (1, 2)
-    #  - 6 => ()
-    #  - Per cada 5 hi ha un 6 despres
-    #  - L'expressio ha de comencar amb: 1, 3, 4, 5
-    #  - L'expressio ha d'acabar amb: 3, 4, 6
+    '''
+    The parser takes a list of tokens and returns a list of tokens with the
+    formula parsed.
+
+    To check if the expression is valid, we will use the following rules:
+    Rules:
+      - 0 => 1, 3, 4, 5
+      - 1 => 5
+      - 2 => 6
+      - 3 => 0
+      - 5 => (1, 2)
+      - 6 => ()
+      - For each 5 there is a 6 afeter it
+      - The expression must start with: 1, 3, 4, 5
+      - The expression must end with: 3, 4, 6
+
+    Attributes:
+    ------------
+    posterior_rules: dict[int, list[int]]
+        Dictionary with the rules that determine possible posterior tokens.
+    start_rules: list[int]
+        List with the rules that determine the possible starting tokens.
+    end_rules: list[int]
+        List with the rules that determine the possible ending tokens.  
+    
+    Static Methods:
+    ---------------
+    _advance_until_closed_parenthesis tokens: list, start_idx: int
+        Advances until the closed parenthesis is found.
+    
+    Methods:
+    --------
+    parse: list[tuple[str, int]] -> list[tuple[str, int]]
+        Takes a list of tokens and returns a list of tokens with the
+        formula parsed.
+    resolve_ranges:tokens: list[tuple[str, int]], spreadsheet: Spreadsheet -> list[tuple[str, int]]
+        Transform the ranges into list of cells.
+    function2operator function: str, tokens: list[tuple[str, int]], idx: int -> list[tuple[str, int]]:
+        Transforms functions into operators.
+    transform_functions_to_operators tokens: list[tuple[str, int]] -> list[tuple[str, int]]:
+        Given a list of tokens substitute functions with operators    
+    
+    '''
 
     # Rules that determine possible posterior tokens
     posterior_rules = {
@@ -101,7 +135,19 @@ class Parser:
     }
 
     def parse(self, tokens: list[tuple[str, int]]) -> list[tuple[str, int]]:
-        """TODO: Document"""
+        ''''
+        Checks if the tokens are valid and returns them.
+
+        Arguments:
+        ----------
+        tokens: list[tuple[str, int]]
+            List of tuples with the token and its id.
+            The id is the index of the token in the token_patterns list.
+        
+        Returns:
+        --------
+        list[tuple[str, int]]
+        '''
         # Check posterior rules
         for (token1, id1), (token2, id2) in pairwise(tokens):
             if id2 not in self.posterior_rules[id1]:
@@ -127,7 +173,21 @@ class Parser:
 
 
     def resolve_ranges(self, tokens: list[tuple[str, int]], spreadsheet: Spreadsheet) -> list[tuple[str, int]]:
-        """Transform the ranges into list of cells.""" # TODO: Document properly
+        '''
+        Transform the ranges into list of cells.
+
+        Arguments:
+        ----------
+        tokens: list[tuple[str, int]]
+            List of tuples with the token and its id.
+            The id is the index of the token in the token_patterns list.
+        spreadsheet: Spreadsheet
+            Spreadsheet object that contains the cells.
+        
+        Returns:
+        --------
+        list[tuple[str, int]]        
+        '''
         print("Resolving ranges...")
         tokens = tokens.copy()
         for token, token_id in tokens:
@@ -142,7 +202,17 @@ class Parser:
     
     @staticmethod
     def _advance_until_closed_parenthesis(tokens: list, start_idx: int):
-        """TODO: Write"""
+        '''
+        Advances the index until a closed parenthesis is found.
+
+        Arguments:
+        -----------
+        tokens: list[tuple[str, int]]
+            List of tuples with the token and its id.
+            The id is the index of the token in the token_patterns list.
+        start_idx: int
+            The index to start searching.
+        '''
         num_open_parenthesis = 1
         while num_open_parenthesis:
             _, token_id = tokens[start_idx]
@@ -155,7 +225,21 @@ class Parser:
     
     
     def function2operator(self, function: str, tokens: list[tuple[str, int]], idx: int) -> list[tuple[str, int]]:
-        """TODO: Write
+        """
+        This method transforms functions into operators.
+
+        Arguments:
+        ----------
+        function: str
+            The function to transform.
+        tokens: list[tuple[str, int]]
+            The list of tokens.
+        idx: int
+            The index of the function token.
+        
+        Returns:
+        --------
+        list[tuple[str, int]]
         
         Note: recursive."""
         operator = self.function_operator[function]
@@ -225,42 +309,6 @@ class Parser:
             
         
     
-    # def transform_functions_to_operators(self, tokens: list[tuple[str, int]], spreadsheet: Spreadsheet) -> list[tuple[str, int]]:
-    #     """ Given a list of tokens:
-    #         - Substitute functions with operators
-    #         - Substitute ranges with actual cell coordinates inside
-    #     """
-    #     i = 0
-    #     while i < len(tokens):
-    #         token, id = tokens[i]
-    #         if id != 1:
-    #             i += 1
-    #             continue
-    #         assert tokens[i+1][0] == '('
-    #         j = i + 2
-    #         operands = []
-    #         # TODO: Add functions inside functions
-    #         while j < len(tokens) and tokens[j][0] != ')':
-    #             if tokens[j] == ';':
-    #                 j += 1
-    #                 continue
-    #             f_token, f_id = tokens[j]
-    #             if f_id == 2: # range
-    #                 ul, lr = Coordinates.range_from_text(f_token)
-    #                 coords = spreadsheet.get_range(ul, lr)
-    #                 operands.extend([(str(coord), 3) for coord in coords])
-    #             if f_id in (3, 4):
-    #                 operands.append((f_token, f_id))
-                
-    #             j += 1
-    #         j += 1
-    #         new_tokens = list(self.tf_function(token, operands))
-    #         tokens = tokens[:i] + new_tokens + tokens[j:]
-    #         i = j
-    #     return tokens
-            
-
-
 class PostfixExpressionManager():
     '''
     Evaluate the formula introduced by the user.
@@ -356,7 +404,18 @@ class PostfixExpressionManager():
         return output
                     
     def evaluate_operation(self, a, b, operator):
-        """TODO: Document"""
+        '''
+        Evaluates the operation between two operands.
+
+        Arguments:
+        ----------
+        a: NumericalValue
+            First operand.
+        b: NumericalValue
+            Second operand.
+        operator: str
+            Operator to apply to the operands.
+        '''
         if operator == "+":
             return a + b
         elif operator == "-":
@@ -375,7 +434,17 @@ class PostfixExpressionManager():
             raise ValueError(f"Bad operator ({operator})")
         
     def evaluate_postfix_expression(self, tokens):
-        """TODO: Document"""
+        '''
+        Evaluates the postfix expression.
+        Arguments:
+        ----------
+        tokens: list[str]
+            Postfix expression.
+        
+        Returns:
+        --------
+        
+        '''
         stack = []
         for token in tokens:
             if isinstance(token, (float, int)):
@@ -394,7 +463,29 @@ class PostfixExpressionManager():
         
         
 class FormulaEvaluator:
-    """TODO: Document"""
+    '''
+    Evaluate the formula introduced by the user.
+
+    Attributes:
+    -----------
+    formula: Formula
+        Formula to evaluate.
+    spreadsheet: Spreadsheet
+        Spreadsheet where the formula is located.
+    tokens: list[tuple[str, int]]
+        List of tuples with the token and its id.
+        The id is the index of the token in the token_patterns list.
+    
+    Methods:
+    --------
+    get_tokens: None -> list[tuple[str, int]]
+        Get the tokens from the formula representation and parse them.
+    evaluate: None -> NumericalValue
+        Evaluates the formula.
+    update_dependencies: None -> None
+        Updates the dependencies of the cells involved in the formula.
+    
+    '''
     
     def __init__(self, formula: Formula, spreadhseet: Spreadsheet):
         self.formula = formula
@@ -402,7 +493,13 @@ class FormulaEvaluator:
         self.tokens = None
         
     def get_tokens(self):
-        """TODO: Document"""
+        '''
+        Get the tokens from the formula representation and parse them.
+
+        Returns:
+        --------
+        tokens: list[tuple[str, int]]
+        '''
         # Obtain tokens from representation
         representation = self.formula.get_representation()
         tokenizer = Tokenizer()
@@ -417,7 +514,9 @@ class FormulaEvaluator:
         return self.tokens
         
     def evaluate(self):
-        """TODO: Document"""
+        '''
+        Evaluates the formula.
+        '''
         # Get tokens
         tokens = self.tokens if self.tokens else self.get_tokens()
         
@@ -433,7 +532,9 @@ class FormulaEvaluator:
         self.formula.set_value(value)
         
     def update_dependencies(self):
-        """TODO: Document"""
+        '''
+        Updates the dependencies of the cells involved in the formula.
+        '''
         # Get tokens
         tokens = self.tokens if self.tokens else self.get_tokens()
         cell_tokens = filter(lambda token: token[1] == 3, tokens)
