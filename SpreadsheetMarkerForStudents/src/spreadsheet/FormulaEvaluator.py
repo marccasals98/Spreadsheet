@@ -25,7 +25,7 @@ class Tokenizer:
         
     token_patterns = [
         r"^(\+|-|\*|\/|\^)",                         # 0
-        r"^(SUM|MIN|MAX|AVG)",                       # 1
+        r"^(SUMA|MIN|MAX|PROMEDIO)",                 # 1
         r"^([A-Z]+[1-9][0-9]*)\:([A-Z]+[1-9][0-9]*)", # 2
         r"^([A-Z]+[1-9][0-9]*)",                     # 3
         r"^([0-9])+",                                # 4
@@ -46,6 +46,7 @@ class Tokenizer:
         return self.tokens
     
     def tokenize(self, repr: str):
+        # TODO: Document
         repr = repr.replace(" ", "")
         while repr != "":
             matched = False
@@ -54,7 +55,6 @@ class Tokenizer:
                 if regex_match:
                     matched = True
                     tok = regex_match.group()
-                    print(f"{pattern=} {tok=}")
                     self.tokens.append((tok, token_id))
                     repr = repr.replace(tok, "", 1)
                     break
@@ -65,6 +65,7 @@ class Tokenizer:
                     
 
 class Parser:
+    """TODO: Document"""
     # Normes:
     #  - 0 => 1, 3, 4, 5
     #  - 1 => 5
@@ -81,26 +82,26 @@ class Parser:
         0: [1, 3, 4, 5],  # After 0, only 1, 3, 4 or 5
         1: [5],
         2: [6, 7],
-        3: [0, 6, 7],
+        3: [0, 3, 6, 7],
         4: [0, 6, 7],
         5: [1, 2, 3, 4],
         6: [0, 6, 7],
-        7: [2, 3, 4]
-        # ...
+        7: [1, 2, 3, 4]
     }
     
     # starting/ending rules
     start_rule = [1, 3, 4, 5]
     end_rule = [3, 4, 6]
     
-    function_operands = {
-        'SUM': '+',
+    function_operator = {
+        'SUMA': '+',
         'MIN': 'm',
         'MAX': 'M',
-        'AVG': '+'
+        'PROMEDIO': '+'
     }
 
     def parse(self, tokens: list[tuple[str, int]]) -> list[tuple[str, int]]:
+        """TODO: Document"""
         # Check posterior rules
         for (token1, id1), (token2, id2) in pairwise(tokens):
             if id2 not in self.posterior_rules[id1]:
@@ -123,55 +124,140 @@ class Parser:
             raise ValueError("Parenthesis do not match")
         
         return tokens
+
+
+    def resolve_ranges(self, tokens: list[tuple[str, int]], spreadsheet: Spreadsheet) -> list[tuple[str, int]]:
+        """Transform the ranges into list of cells.""" # TODO: Document properly
+        print("Resolving ranges...")
+        tokens = tokens.copy()
+        for token, token_id in tokens:
+            if token_id != 2:  # Not a range, skip
+                yield (token, token_id)
+            else:
+                
+                ul, lr = Coordinates.range_from_text(token)
+                coords = spreadsheet.get_range(ul, lr)
+                yield from ((str(coord), 3) for coord in coords)
+                
     
-    def tf_function(self, function: str, operands: list[tuple[str, int]]):
-        """Transform one function into a list of tokens.
+    @staticmethod
+    def _advance_until_closed_parenthesis(tokens: list, start_idx: int):
+        """TODO: Write"""
+        num_open_parenthesis = 1
+        while num_open_parenthesis:
+            _, token_id = tokens[start_idx]
+            if token_id == 5:
+                num_open_parenthesis += 1
+            elif token_id == 6:
+                num_open_parenthesis -= 1
+            start_idx += 1
+        return start_idx
+    
+    
+    def function2operator(self, function: str, tokens: list[tuple[str, int]], idx: int) -> list[tuple[str, int]]:
+        """TODO: Write
         
-        For example: 
-            SUM(A1;A2;A3) => (A1+A2+A3)
-            AVG(A1;B2;3) => (A1+B2+3)/3
-        """
+        Note: recursive."""
+        operator = self.function_operator[function]
+        num_operands = 0
+        
+        # Start by yielding the open parenthesis token
         yield ("(", 5)
-        if function == 'AVG':
+        
+        # In the case of average, we add and extra parenthesis
+        if function == 'PROMEDIO':
             yield ("(", 5)
-        for operand in operands[:-1]:
-            yield operand
-            yield (self.function_operands[function], 0)
-        yield operands[-1]
-        yield (")", 6)
-        if function == 'AVG':
-            yield ("/", 0)
-            yield (len(operands), 4)
-            yield (")", 6)
-    
-    def transform_functions_to_operators(self, tokens: list[tuple[str, int]], spreadsheet: Spreadsheet) -> list[tuple[str, int]]:
-        """ Given a list of tokens:
-            - Substitute functions with operators
-            - Substitute ranges with actual cell coordinates inside
-        """
-        i = 0
-        while i < len(tokens):
-            token, id = tokens[i]
-            if id != 1:
-                i += 1
+        
+        # Traverse all tokens until you find a ")"
+        while idx < len(tokens):
+        # for idx, (token, token_id) in enumerate(tokens):
+            token, token_id = tokens[idx]
+            if token_id == 6:         # close parenthesis
+                break
+            elif token_id == 1:       # another function
+                yield from self.function2operator(token, tokens, idx+2)
+                idx = self._advance_until_closed_parenthesis(tokens, idx+2)
+                num_operands += 1
+            elif token_id in (3, 4):  # cell or value
+                yield (token, token_id)
+                num_operands += 1
+                idx += 1
+            else:
+                idx += 1
                 continue
-            assert tokens[i+1][0] == '('
-            j = i + 2
-            operands = []
-            while j < len(tokens) and tokens[j-1][0] != ')':
-                f_token, f_id = tokens[j]
-                if f_id == 2: # range
-                    ul, lr = Coordinates.range_from_text(f_token)
-                    coords = spreadsheet.get_range(ul, lr)
-                    operands.extend([(str(coord), 3) for coord in coords])
-                if f_id in (3,4):
-                    operands.append((f_token, f_id))
-                assert tokens[j+1][0] in (';', ')')
-                j += 2
-            new_tokens = list(self.tf_function(token, operands))
-            tokens = tokens[:i] + new_tokens + tokens[j:]
-            i = j
-        return tokens
+            
+            if tokens[idx][1] != 6:
+                yield (operator, 0)
+            
+        # In the case of average, divide by number of operands
+        if function == 'PROMEDIO':
+            yield from ((")", 6), ("/", 0), (f"{num_operands}", 4))  
+        
+        # Close the initial parenthesis
+        yield(")", 6)
+            
+    
+    def transform_functions_to_operators(self, tokens: list[tuple[str, int]]) -> list[tuple[str, int]]:
+        """ Given a list of tokens substitute functions with operators
+        
+        Parameters
+        ----------
+        tokens: list[tuple[str, int]]
+            List of tokens (Assumption: no ranges)
+        idx: int
+            index of the first character
+        """
+        idx = 0
+        while idx < len(tokens):
+            token, token_id = tokens[idx]
+        # for idx, (token, token_id) in enumerate(tokens):
+            if token_id != 1: # Not a function, skip
+                yield (token, token_id)
+                idx += 1
+                continue
+            
+            # Yield the transformed set of tokens
+            idx += 2
+            yield from self.function2operator(token, tokens, idx)
+            
+            # Advance until the outer function is finished
+            idx = self._advance_until_closed_parenthesis(tokens, idx)
+            
+        
+    
+    # def transform_functions_to_operators(self, tokens: list[tuple[str, int]], spreadsheet: Spreadsheet) -> list[tuple[str, int]]:
+    #     """ Given a list of tokens:
+    #         - Substitute functions with operators
+    #         - Substitute ranges with actual cell coordinates inside
+    #     """
+    #     i = 0
+    #     while i < len(tokens):
+    #         token, id = tokens[i]
+    #         if id != 1:
+    #             i += 1
+    #             continue
+    #         assert tokens[i+1][0] == '('
+    #         j = i + 2
+    #         operands = []
+    #         # TODO: Add functions inside functions
+    #         while j < len(tokens) and tokens[j][0] != ')':
+    #             if tokens[j] == ';':
+    #                 j += 1
+    #                 continue
+    #             f_token, f_id = tokens[j]
+    #             if f_id == 2: # range
+    #                 ul, lr = Coordinates.range_from_text(f_token)
+    #                 coords = spreadsheet.get_range(ul, lr)
+    #                 operands.extend([(str(coord), 3) for coord in coords])
+    #             if f_id in (3, 4):
+    #                 operands.append((f_token, f_id))
+                
+    #             j += 1
+    #         j += 1
+    #         new_tokens = list(self.tf_function(token, operands))
+    #         tokens = tokens[:i] + new_tokens + tokens[j:]
+    #         i = j
+    #     return tokens
             
 
 
@@ -213,10 +299,8 @@ class PostfixExpressionManager():
             '*': 2,
             '/': 2,
             '^': 3,
-            'SUM': 3, 
-            'MIN': 3,
-            'MAX': 3,
-            'AVG': 3
+            'M': 3,  # Max
+            'm': 3   # Min
         }
 
         for token, id in tokens:
@@ -226,29 +310,29 @@ class PostfixExpressionManager():
             
             # The token is a cell reference.
             if id == 3:
-                print(token)
                 coords = Coordinates.from_text(token)
-                print(spreadsheet.get_values())
+                if coords not in spreadsheet.cells:
+                    spreadsheet.expand(coords.col, coords.row)
                 value = spreadsheet.cells[coords].get_value()
                 output.append(value)
             
             # The token is an operator.
             elif id == 0:
                 # compare the precedence of the token with that of the operator on the top of the stack.
-                while stack and stack[-1] == 0 and precedence[stack[-1]] >= precedence[token]:
-                    operator, _ = stack.pop()
+                while stack and stack[-1] in precedence.keys() and precedence[stack[-1]] >= precedence[token]:
+                    operator = stack.pop()
                     output.append(operator)
                 # push the operator onto the stack.
                 stack.append(token)                    
             
             # The token is a function.
-            elif id == 1:
-                # compare the precedence of the token with that of the operator on the top of the stack.
-                while stack and stack[-1] == 0 and precedence[stack[-1]] >= precedence[token]:
-                    formula, _ = stack.pop()
-                    output.append(formula)
-                # push the formula onto the stack.
-                stack.append(token)   
+            # elif id == 1:
+            #     # compare the precedence of the token with that of the operator on the top of the stack.
+            #     while stack and stack[-1] == 0 and precedence[stack[-1]] >= precedence[token]:
+            #         formula, _ = stack.pop()
+            #         output.append(formula)
+            #     # push the formula onto the stack.
+            #     stack.append(token)   
 
             # The token is a left parenthesis.
             elif id == 5:
@@ -272,6 +356,7 @@ class PostfixExpressionManager():
         return output
                     
     def evaluate_operation(self, a, b, operator):
+        """TODO: Document"""
         if operator == "+":
             return a + b
         elif operator == "-":
@@ -282,17 +367,17 @@ class PostfixExpressionManager():
             return a / b
         elif operator == "^":
             return a ** b
-        elif operator == "m":
+        elif operator == "m":  # min
             return min(a, b)
-        elif operator == "M":
+        elif operator == "M":  # max
             return max(a, b)
         else:
             raise ValueError(f"Bad operator ({operator})")
         
     def evaluate_postfix_expression(self, tokens):
+        """TODO: Document"""
         stack = []
         for token in tokens:
-            print(stack)
             if isinstance(token, (float, int)):
                 stack.append(token)
             else:
@@ -309,6 +394,7 @@ class PostfixExpressionManager():
         
         
 class FormulaEvaluator:
+    """TODO: Document"""
     
     def __init__(self, formula: Formula, spreadhseet: Spreadsheet):
         self.formula = formula
@@ -316,6 +402,7 @@ class FormulaEvaluator:
         self.tokens = None
         
     def get_tokens(self):
+        """TODO: Document"""
         # Obtain tokens from representation
         representation = self.formula.get_representation()
         tokenizer = Tokenizer()
@@ -324,11 +411,13 @@ class FormulaEvaluator:
         # Parse tokens
         parser = Parser()
         self.tokens = parser.parse(tokens)
-        self.tokens = parser.transform_functions_to_operators(tokens, self.spreadsheet)
+        self.tokens = list(parser.resolve_ranges(self.tokens, self.spreadsheet))
+        self.tokens = list(parser.transform_functions_to_operators(self.tokens))
         
         return self.tokens
         
     def evaluate(self):
+        """TODO: Document"""
         # Get tokens
         tokens = self.tokens if self.tokens else self.get_tokens()
         
@@ -344,6 +433,7 @@ class FormulaEvaluator:
         self.formula.set_value(value)
         
     def update_dependencies(self):
+        """TODO: Document"""
         # Get tokens
         tokens = self.tokens if self.tokens else self.get_tokens()
         cell_tokens = filter(lambda token: token[1] == 3, tokens)

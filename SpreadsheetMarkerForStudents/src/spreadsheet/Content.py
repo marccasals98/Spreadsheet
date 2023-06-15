@@ -13,6 +13,10 @@ class Content:
     @abc.abstractclassmethod
     def get_value():
         ...
+        
+    @abc.abstractclassmethod
+    def get_value_to_dump():
+        ...
     
     @abc.abstractclassmethod
     def set_value():
@@ -20,11 +24,15 @@ class Content:
 
 
 class Numerical(Content):
+    """TODO: Document"""
     def __init__(self, value: float):
         self._value = value
     
     def get_value(self):
         return self._value
+    
+    def get_value_to_dump(self):
+        return self._value    
     
     def set_value(self, value: float):
         self._value = value
@@ -34,11 +42,15 @@ class Numerical(Content):
         
 
 class Text(Content):
+    """TODO: Document"""
     def __init__(self, value: str):
         self._value = value
     
     def get_value(self):
         return self._value
+    
+    def get_value_to_dump(self):
+        return self._value  
     
     def set_value(self, value: str):
         self._value = value
@@ -48,6 +60,7 @@ class Text(Content):
         
 
 class Formula(Content):
+    """TODO: Document"""
     def __init__(self, repr: str):
         if repr[0] == '=':
             repr = repr[1:]
@@ -59,6 +72,9 @@ class Formula(Content):
         if self._value == None:
             raise Exception("Formula not yet evaluated")
         return self._value
+    
+    def get_value_to_dump(self):
+        return "=" + self._representation  
 
     def set_value(self, value: int | float):
         self._value = value
@@ -86,6 +102,8 @@ class ContentFactory:
             return Numerical(int(value))
         if is_float(value):
             return Numerical(float(value))
+        if value is None or value == "":
+            return Text('')
         if value[0] == "=":
             return Formula(value)
         return Text(value)
