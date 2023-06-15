@@ -27,9 +27,9 @@ $env:pythonpath = "$pwd;$pwd\..\test"
 python3 ../test/edu/upc/ac/marker/TestsRunner.py
 ```
 
-Commands:
-RF: Read a the commands from a file.
-C: Creates a new sheet.
-E: Edits a cell.
-L: Loads a sheet from a file.
-S: Saves the sheet to a file.
+Commands:\\
+RF: Read a the commands from a file.\\
+C: Creates a new sheet.\\
+E: Edits a cell.\\
+L: Loads a sheet from a file.\\
+S: Saves the sheet to a file.\\
