@@ -1,5 +1,4 @@
 from __future__ import annotations
-import re
 
 from spreadsheet.Content import Content, Numerical, Text, ContentFactory
 from spreadsheet.Coordinates import Coordinates
@@ -29,6 +28,10 @@ class Cell:
     def get_value(self) -> int | float | str:
         """Get the value of the cell"""
         return self._content.get_value()
+
+    def get_value_to_dump(self) -> int | float | str:
+        """Get the value of the cell"""
+        return self._content.get_value_to_dump()
     
     def get_content(self) -> int | float | str:
         """Get the value of the cell"""
@@ -149,8 +152,9 @@ class Spreadsheet:
             row_values = []
             for col in range(1, self.num_columns+1):
                 coord = Coordinates(col, row)
-                row_values.append(str(self.cells[coord].get_value()))
+                row_values.append(str(self.cells[coord].get_value_to_dump()))
             values.append(row_values)
+        
         return values
             
             

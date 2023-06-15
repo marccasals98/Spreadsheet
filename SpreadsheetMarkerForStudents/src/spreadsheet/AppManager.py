@@ -1,14 +1,18 @@
 from pathlib import Path
 import os 
 
+from copy import deepcopy
+
 from spreadsheet.CLI import CLI
 from spreadsheet.Spreadsheet import Spreadsheet, Coordinates
 from spreadsheet.Content import ContentFactory, Formula, Content
 from spreadsheet.FormulaEvaluator import FormulaEvaluator
 
+from edu.upc.etsetb.arqsoft.spreadsheet.entities.circular_dependency_exception import CircularDependencyException
+
 class SpreadsheetIO:
     """SpreadsheetIO class
-    Responsible for reading/writing spreadsheets to files
+    Responsible for reading.writing spreadsheets to files
     
     File formats supported:
         - sv2
@@ -105,7 +109,6 @@ class AppManager:
         path: str | Path
             Path to the file to read the commands from
         """
-        # TODO: test
         path = Path(path)
         if not path.exists():
             self.cli.cerror(f"The file {path} does not eist")
@@ -121,22 +124,22 @@ class AppManager:
 
     def create_new_sheet(self):
         """Creates a new empty spreadsheet"""
-        # TODO: Check default values
         self.spreadsheet = Spreadsheet("my spreadsheet", 10, 10)
         
     
     def _update_dependencies(self, coords: Coordinates, new_content: Content):
         """Update the dependencies between cells."""
+        # Save copy of dependencies for rollback
+        old_dependencies = deepcopy(self.cell_dependencies)
+        
         # If cell had a formula before, remove dependencies
         content = self.spreadsheet.cells[coords].get_content()
         if isinstance(content, Formula):
-            print("REMOVING OLD DEPENDENCIES")
             for cell in content.get_dependencies():
                 self.cell_dependencies[cell].remove(coords)
                 
         # If new content is not formula, no need to add dependencies
         if not isinstance(new_content, Formula):
-            print(f"{new_content} is not formula")
             return
         
         # Add new dependencies
@@ -146,8 +149,9 @@ class AppManager:
             self.cell_dependencies[cell].append(coords)
         
         # Check for circular dependencies
-        if self.check_circular_dependencies(coords):
-            raise ValueError("Formula introduced circular dependencies!")
+        if self.check_circular_dependencies([coords]):
+            self.cell_dependencies = old_dependencies
+            raise CircularDependencyException("Formula introduced circular dependencies!")
     
         
     def edit_cell(self, coords: str, value: str | float | int):
@@ -163,24 +167,23 @@ class AppManager:
         """
         coords = Coordinates.from_text(coords)
         content = ContentFactory.get(value)
+        if coords not in self.spreadsheet.cells:
+            self.spreadsheet.expand(coords.col, coords.row)
         if isinstance(content, Formula):
             evaluator = FormulaEvaluator(content, self.spreadsheet)
             evaluator.evaluate()
             evaluator.update_dependencies()
         self._update_dependencies(coords, content)
-        if coords not in self.spreadsheet.cells:
-            self.spreadsheet.expand(coords.col, coords.row)
         
         self.spreadsheet.cells[coords].set_content(content)
         
         # Recompute cells that depend on new cell
         dependencies = self.cell_dependencies.get(coords, []).copy()
         recomputed_cells = set()
-        print(f"Dependencies to check: {self.cell_dependencies}")
         while dependencies:
             cell = dependencies.pop()
-            if cell in recomputed_cells:
-                raise ValueError("Circular Dependency")
+            # if cell in recomputed_cells:
+            #     raise ValueError("Circular Dependency")
             recomputed_cells.add(cell)
             evaluator = FormulaEvaluator(self.spreadsheet.cells[cell].get_content(), 
                                          self.spreadsheet)
@@ -189,12 +192,21 @@ class AppManager:
 
             
         
-    def check_circular_dependencies(self, coords: Coordinates):
+    def check_circular_dependencies(self, coords: list[Coordinates]):
         """Check if there is a circular dependency involving `coords`"""
-        # TODO: Check circular dependencies of more than 1 jump
-        for cell in self.cell_dependencies.get(coords, []):
-            if self.cell_dependencies.get(cell, None):
-                return True
+        # BFS
+        cells_to_check = coords.copy()
+        checked_cells = set(coords)
+        while cells_to_check:
+            cells_to_check_future = []
+            for cell in cells_to_check:
+                for dep_cell in self.cell_dependencies.get(cell, []):
+                    if dep_cell in checked_cells:
+                        return True
+                    cells_to_check_future.append(dep_cell)
+                    checked_cells.add(dep_cell)
+            cells_to_check = cells_to_check_future
+        
         return False
 
     def load_spreadsheet_from_file(self, path: str):
@@ -232,19 +244,25 @@ class AppManager:
             cmd, args = self.cli.read_command()
         
 
-    ### The following are classes are just for the checker:
+    ### The following methods are just for the checker:
     def set_cell_content(self, coord, str_content):
         self.edit_cell(coord, str_content)
     
     def get_cell_content_as_float(self, coord):
+        if (coords := Coordinates.from_text(coord)) not in self.spreadsheet.cells:
+            self.spreadsheet.expand(coords.col, coords.row)
         return float(self.spreadsheet.cells[Coordinates.from_text(coord)].get_value())
     
     def get_cell_content_as_string(self, coord):
-        return str(self.spreadsheet.cells[Coordinates.from_text(coord)].get_value())
+        if (coords := Coordinates.from_text(coord)) not in self.spreadsheet.cells:
+            self.spreadsheet.expand(coords.col, coords.row)
+        value = self.spreadsheet.cells[Coordinates.from_text(coord)].get_value()
+        return value if value else ""
     
     def get_cell_formula_expression(self, coord):
-        # TODO: Change
-        # formula: Formula = self.spreadsheet.cells[Coordinates.from_text(coord)].get_content()
-        # return formula.get_representation()
-        return self.get_cell_content_as_string(coord)
+        if (coords := Coordinates.from_text(coord)) not in self.spreadsheet.cells:
+            self.spreadsheet.expand(coords.col, coords.row)
+        formula: Formula = self.spreadsheet.cells[Coordinates.from_text(coord)].get_content()
+        return "=" + formula.get_representation().replace(";", ",")
+        # return self.get_cell_content_as_string(coord)
         
