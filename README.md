@@ -33,8 +33,8 @@ Commands:
 
 * C: Creates a new sheet.
 
-E: Edits a cell.
+* E: Edits a cell.
 
-L: Loads a sheet from a file.
+* L: Loads a sheet from a file.
 
-S: Saves the sheet to a file.
+* S: Saves the sheet to a file.
